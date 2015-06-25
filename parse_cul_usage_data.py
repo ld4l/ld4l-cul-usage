@@ -78,7 +78,11 @@ class CULChargeAndBrowse(LineIterator):
             raise Exception("Bad format for circ data in %s, bad first line '%s'" % (file,first_line))
  
     def next_line(self):
-        """Read next line else raise exception describing problem"""
+        """Read next line else raise exception describing problem
+
+        The data includes lines where the change and browse counts are both
+        zero and should be skipped.
+        """
         self.readline()
         try:
             (item_id,bib_id,charges,browses) = self.line.split()
@@ -89,7 +93,11 @@ class CULChargeAndBrowse(LineIterator):
             browses = int(browses)
             if (browses>10000):
                 raise Exception("excessive browse count: %d for bib_id=%d" % (browses,bib_id)) 
+            if (charges==0 and browses==0):
+                raise SkipLine()
             return (bib_id,charges,browses)
+        except SkipLine as sl:
+            raise sl
         except Exception as e:
             # provide file ane line num details in msg
             raise Exception('[%s line %d] Ignoring "%s"] %s' % (self.fh.name,self.linenum,self.line,str(e)))
@@ -237,10 +245,11 @@ def analyze_distributions(opt):
         charge[bib_id] = charge.get(bib_id,0) + charges
         if (charges>0):
             bits[bib_id] = bits.get(bib_id,0) | 1
+            all_bib_ids[bib_id] = 1
         browse[bib_id] = browse.get(bib_id,0) + browses
         if (browses>0):
             bits[bib_id] = bits.get(bib_id,0) | 2
-        all_bib_ids[bib_id] = 1
+            all_bib_ids[bib_id] = 1
     circ = {}
     for (bib_id,date) in CULCircTrans(opt.circ_trans):
         circ[bib_id] = circ.get(bib_id,0) + 1
