@@ -1,5 +1,4 @@
 set title "Histogram of fractions of items per StackScore"
-set label "<- items with no usage data are given a StackScore of 1" at 3,0.7
 set ylabel "Fraction of items"
 set xlabel "StackScore"
 #set noborder
