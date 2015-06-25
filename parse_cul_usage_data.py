@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
-# Code to parse CUL usage data
+# Code to parse CUL usage data, do some analysis, and generate
+# a StackScore. See README.md.
 #
 import datetime
 import gzip
@@ -223,19 +224,46 @@ def analyze_distributions(opt):
     all_bib_ids = {}
     charge = {}
     browse = {}
+    bits = {}
     for (bib_id,charges,browses) in CULChargeAndBrowse(opt.charge_and_browse):
         charge[bib_id] = charge.get(bib_id,0) + charges
+        if (charges>0):
+            bits[bib_id] = bits.get(bib_id,0) | 1
         browse[bib_id] = browse.get(bib_id,0) + browses
+        if (browses>0):
+            bits[bib_id] = bits.get(bib_id,0) | 2
         all_bib_ids[bib_id] = 1
     circ = {}
     for (bib_id,date) in CULCircTrans(opt.circ_trans):
         circ[bib_id] = circ.get(bib_id,0) + 1
+        bits[bib_id] = bits.get(bib_id,0) | 4
         all_bib_ids[bib_id] = 1
 
     num_bib_ids = len(all_bib_ids)
     write_dist(charge,'charge_dist.dat',num_bib_ids)
     write_dist(browse,'browse_dist.dat',num_bib_ids)
     write_dist(circ,'circ_dist.dat',num_bib_ids)
+
+    # Look at overlaps between groups from bitwise
+    totals = {0:0,1:0,2:0,3:0,4:0,5:0,6:0,7:0}
+    for bib_id in bits:
+        totals[bits[bib_id]] += 1
+    file = 'usage_venn.dat'
+    logging.info("Writing %s..." % file)
+    fh = open(file,'w')
+    fh.write("# Overlaps in different types of usage data:\n");
+    just = 'just '
+    for n in range(1,8):
+        desc = []
+        if (n & 1):
+            desc.append('browse')
+        if (n & 2):
+            desc.append('charge')
+        if (n & 4):
+            desc.append('circ')
+        if (n==7):
+            just = ''
+        fh.write("%7d items have %s%s data\n" % (totals[n],just,'+'.join(desc)))
 
 
 def compute_stackscore(opt):
