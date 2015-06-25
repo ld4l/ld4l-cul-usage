@@ -63,3 +63,10 @@ I have calculated a score for Cornell data using a similar normalization approac
 Features from the comparison:
 
   1. 
+
+## Possible additional sources of data not currently used
+
+  * Course reserves
+  * Number of holdings for a given item
+  * Number of locations with a holding of a given item
+  
