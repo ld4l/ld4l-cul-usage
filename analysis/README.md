@@ -56,7 +56,7 @@ The StackScore is an interger from 1 to 100 where 1 is intended to indicates low
   2. 98% of these items are assigned the lowest score of 1, this is equivalent to saying that only 2% get any usage-derived highlighting (Harvard have some usage information 11.5% of all items but many of these are aggregated into the score 1 bin).
   3. Scores have been normalized so that about 140 items (0.001% of all items) are in each of the top scores (100, 99, 98...), rising slowly to 277 items (0.002% of all items) with score 50, and about 1000 items with score 25.
   
-I have calculated a score for Cornell data using a similar normalization approach. Distribution is in `cornell_stackscore_distribution.dat` and below is a comparion of the Cornell and Harvard distributions (also PDF in `compare_stackscore_distributions.pdf`):
+I have calculated a score for Cornell data using a similar normalization approach. Distribution is in `cornell_stackscore_distribution.dat` and below is a comparion of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions.pdf)):
 
 ![Comparison of the Cornell and Harvard StackScore distributions](compare_stackscore_distributions.png)
 
