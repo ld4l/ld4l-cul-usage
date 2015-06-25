@@ -84,7 +84,11 @@ class CULChargeAndBrowse(LineIterator):
             (item_id,bib_id,charges,browses) = self.line.split()
             bib_id = int(bib_id)
             charges = int(charges)
+            if (charges>10000):
+                raise Exception("excessive charge count: %d for bib_id=%d" % (charges,bib_id)) 
             browses = int(browses)
+            if (browses>10000):
+                raise Exception("excessive browse count: %d for bib_id=%d" % (browses,bib_id)) 
             return (bib_id,charges,browses)
         except Exception as e:
             # provide file ane line num details in msg
@@ -196,7 +200,11 @@ def write_dist(data,file,all_bib_ids=0):
                 num_bib_ids[count] = num_bib_ids[count] + 1
             else:
                 num_bib_ids[count] = 1
-                example_bib_id[count] = bib_id
+                if (opt.examples):
+                    example_bib_id[count] = bib_id
+                else:
+                    # default not to include specific example bib_id for individual data sources
+                    example_bib_id[count] = '-'
     if (all_bib_ids==0):
         all_bib_ids=total_bib_ids
     logging.info("Writing %s..." % file)
@@ -245,9 +253,13 @@ def analyze_distributions(opt):
     write_dist(circ,'circ_dist.dat',num_bib_ids)
 
     # Look at overlaps between groups from bitwise
-    totals = {0:0,1:0,2:0,3:0,4:0,5:0,6:0,7:0}
+    exc_totals = {0:0,1:0,2:0,3:0,4:0,5:0,6:0,7:0}
+    inc_totals = {1:0,2:0,4:0}
     for bib_id in bits:
-        totals[bits[bib_id]] += 1
+        exc_totals[bits[bib_id]] += 1
+        for b in (1,2,4):
+            if (bits[bib_id] & b):
+                inc_totals[b] += 1
     file = 'usage_venn.dat'
     logging.info("Writing %s..." % file)
     fh = open(file,'w')
@@ -263,8 +275,11 @@ def analyze_distributions(opt):
             desc.append('circ')
         if (n==7):
             just = ''
-        fh.write("%7d items have %s%s data\n" % (totals[n],just,'+'.join(desc)))
-
+        out_of = ''
+        if (n in (1,2,4)):
+            out_of = ' (out of %d items with this data)' % inc_totals[n]
+        fh.write("%7d items have %s%s data%s\n" % (exc_totals[n],just,'+'.join(desc),out_of))
+    fh.close()
 
 def compute_stackscore(opt):
     """Read in usage data and compute StackScores"""
@@ -328,7 +343,9 @@ p.add_option('--charge-and-browse', action='store', default='testdata/subset-cha
 p.add_option('--circ-trans', action='store', default='testdata/subset-circ-trans.tsv.gz',
              help="Circulation transactions, gzipped input file (default %default)")
 p.add_option('--logfile', action='store',
-             help="Send log output tp specified file")
+             help="Send log output to specified file")
+p.add_option('--examples', action='store_true',
+             help="Include example bib_id in distribution outputs")
 p.add_option('--verbose', '-v', action='store_true',
              help="verbose, show additional informational messages")
 

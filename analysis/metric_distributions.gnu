@@ -1,12 +1,12 @@
-set title "Distributions of counts for different usage metrics"
+set title "Distributions of counts for different usage metrics at Cornell"
 set ylabel "Fraction of bib ids with any usage data"
 set xlabel "Count with given metric"
 set key right top
 set tics in
 set grid
-set xrange [0.9:20000]
+set xrange [0.9:200000]
 set logscale x
-set yrange [0.000009:0.4]
+set yrange [0.00000009:0.4]
 set logscale y
 
 plot "circ_dist.dat" using 1:4 title "circulation (recent)" with boxes fs solid 0.4,\

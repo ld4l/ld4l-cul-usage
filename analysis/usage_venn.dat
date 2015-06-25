@@ -1,0 +1,8 @@
+# Overlaps in different types of usage data:
+ 278903 items have just browse data (out of 2135257 items with this data)
+ 210432 items have just charge data (out of 1457000 items with this data)
+ 120415 items have just browse+charge data
+     39 items have just circ data (out of 1736038 items with this data)
+ 609846 items have just browse+circ data
+     60 items have just charge+circ data
+1126093 items have browse+charge+circ data
