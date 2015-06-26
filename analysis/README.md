@@ -21,9 +21,11 @@ user		   4m20.916s
 sys		   0m1.376s
 ```
 
-Then the files `charge_dist.dat`, `browse_dist.dat`, and `circ_dist.dat` have the distributions of counts for historical charges, browses, and circulation transactions. The file `usage_venn.dat` has Venn diagram data for overlap of the metrics which is represented graphically in:
+Then the files `charge_dist.dat`, `browse_dist.dat`, and `circ_dist.dat` have the distributions of counts for historical charges, browses, and circulation transactions. The file `usage_venn.dat` has Venn diagram data for overlap of the three metrics which is represented graphically in:
 
 ![Venn diagram of metric data overlaps](usage_venn.png)
+
+There is data for a total of 2345788 `bib_ids`. The very small numbers of `bib_ids` represented in the circulation transactions which have no matching entry in the charge counts are likely records for items that have been deleted. Otherwise, this overlap provides conformation that all circulation transactions have been reflected in the charge counts.
 
 The gnuplot file `metric_distributions.gnu` plots the distributions of data from the three metrics on the same plot. The results demonstrate very similar forms for the metrics, and even very similar scales. PDF in `metric_distributions.pdf`: 
 
