@@ -292,14 +292,14 @@ def analyze_distributions(opt):
         fh.write("%7d items have %s%s data%s\n" % (exc_totals[n],just,'+'.join(desc),out_of))
     fh.close()
 
-def compute_stackscore(opt):
+def compute_raw_scores(opt):
     """Read in usage data and compute StackScores
 
     Score is calculated according to:
 
-    stackscore = charges * charge_weight +
-                 browses * browse_weight +
-                 sum_over_all_circ_trans( circ_weight + 0.5 ^ (circ_trans_age / circ_halflife) )
+    score = charges * charge_weight +
+            browses * browse_weight +
+            sum_over_all_circ_trans( circ_weight + 0.5 ^ (circ_trans_age / circ_halflife) )
 
     because recent circulation transactions are also reflected in the charge counts, this 
     means that a circulation that happens today will score (charge_weight+circ_weight) whereas
@@ -326,7 +326,9 @@ def compute_stackscore(opt):
         scores[bib_id] = scores.get(bib_id,0) + score
 
     write_dist(scores, 'raw_scores_dist.dat')
+    return(scores)
 
+def compute_stackscore(scores,opt):
     # Now normalize on a scale of 2-100 inclusive. The score of 1 will be reserved 
     # for all items that have no usage data as is done for the Harvard StackScore.
     counts = {}
@@ -403,7 +405,8 @@ if (opt.make_randomized_subset):
 elif (opt.analyze):
     analyze_distributions(opt)
 else:
-    compute_stackscore(opt)
+    scores = compute_raw_scores(opt)
+    compute_stackscore(scores_opt)
 logging.info("FINISHED at %s" % (datetime.datetime.now()))
 
 
