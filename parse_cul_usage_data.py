@@ -11,6 +11,7 @@ import os
 from random import SystemRandom
 import re
 import sys
+import math
 
 class SkipLine(Exception):
     """Exception to indicate skipping certain types of line without adding to bad count or flagging"""
@@ -193,14 +194,15 @@ def make_randomized_subset(opt):
 def write_dist(data,file,all_bib_ids=0):
     """Write summary of distribution of data to file
     
-    data is a dict[bib_id] with some counts a values
+    data is a dict[bib_id] with some counts a values, the integer value of the count
+    is taken
     """
     total_bib_ids = 0
     total_counts = 0
     num_bib_ids = {} #inverted: number of bib_ids with given count
     example_bib_id = {}
     for bib_id in data:
-        count = data[bib_id]
+        count = int(data[bib_id])
         if (count>0):
             total_bib_ids += 1
             total_counts += count
@@ -221,7 +223,7 @@ def write_dist(data,file,all_bib_ids=0):
     fh.write("#\n# total bib_ids with non-zero counts = %d\n" % total_bib_ids)
     fh.write("# total bib_ids with any usage data = %d\n" % all_bib_ids)
     fh.write("# total of all counts = %d\n" % total_counts)
-    fh.write("#\n# col1 = count\n# col2 = num_bib_ids\n")
+    fh.write("#\n# col1 = int(count)\n# col2 = num_bib_ids\n")
     fh.write("# col3 = fraction of total bib_ids with non-zero counts for this metric\n")
     fh.write("# col4 = fraction of all bib_ids with any usage data\n")
     fh.write("# col5 = example bib_id (prepend: https://newcatalog.library.cornell.edu/catalog/)\n")
@@ -291,20 +293,37 @@ def analyze_distributions(opt):
     fh.close()
 
 def compute_stackscore(opt):
-    """Read in usage data and compute StackScores"""
+    """Read in usage data and compute StackScores
+
+    Score is calculated according to:
+
+    stackscore = charges * charge_weight +
+                 browses * browse_weight +
+                 sum_over_all_circ_trans( circ_weight + 0.5 ^ (circ_trans_age / circ_halflife) )
+
+    because recent circulation transactions are also reflected in the charge counts, this 
+    means that a circulation that happens today will score (charge_weight+circ_weight) whereas
+    on the happened circ_halflife ago will score (charge_weight+0.5*circ_weight). An old 
+    circulation event that is recored only in the charge counts will score just charge_weight.
+
+    """
 
     scores = {}
-    charge_weight = 3
+    charge_weight = 2
     browse_weight = 1
-    circ_weight = 5
+    circ_weight = 2
+    circ_halflife =  5.0 * 365.0 # number of days back that circ trans has half circ_weight
 
     for (bib_id,charges,browses) in CULChargeAndBrowse(opt.charge_and_browse):
         #print "%d %d %d" % (bib_id,charges,browses)
         scores[bib_id] = scores.get(bib_id,0) + charges*charge_weight + browses*browse_weight
     
+    today = datetime.datetime.now().date()
     for (bib_id,date) in CULCircTrans(opt.circ_trans):
-        #print "%d %s" % (bib_id,str(date))
-        scores[bib_id] = scores.get(bib_id,0) + circ_weight
+        age = (today - date).days # age in years since circ transaction
+        score = circ_weight * math.pow(0.5, age/circ_halflife )
+        #print "%d %s %.3f %.3f" % (bib_id,str(date),age,score)
+        scores[bib_id] = scores.get(bib_id,0) + score
 
     write_dist(scores, 'raw_scores_dist.dat')
 
