@@ -13,3 +13,5 @@ total 148M
 > zcat /cul/data/voyager/circ_trans.txt.gz  | wc -l
 10479934
 ```
+
+These dumps are not publicly available. For testing there are some randomized data dumps of 1/100th the size in the [testdata](testdata) directory. These follow the same formatting as the real dumps.
