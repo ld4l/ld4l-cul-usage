@@ -25,7 +25,7 @@ Then the files `charge_dist.dat`, `browse_dist.dat`, and `circ_dist.dat` have th
 
 ![Venn diagram of metric data overlaps](usage_venn.png)
 
-There is data for a total of 2345788 `bib_ids`. The very small numbers of `bib_ids` represented in the circulation transactions which have no matching entry in the charge counts are likely records for items that have been deleted. Otherwise, this overlap provides conformation that all circulation transactions have been reflected in the charge counts.
+There is data for a total of 2345788 `bib_ids`. The very small numbers of `bib_ids` represented in the circulation transactions which have no matching entry in the charge counts are likely records for items that have been deleted. Otherwise, this overlap provides confirmation that all circulation transactions have been reflected in the charge counts.
 
 The gnuplot file `metric_distributions.gnu` plots the distributions of data from the three metrics on the same plot. The results demonstrate very similar forms for the metrics, and even very similar scales. PDF in `metric_distributions.pdf`: 
 
@@ -33,7 +33,7 @@ The gnuplot file `metric_distributions.gnu` plots the distributions of data from
 
 ## Computing a StackScore and comparing with Harvard data
 
-Run code without `--analyze` option to compute raw score and normalized StackScore:
+Run code (done 2015-06-25, commit eed4518638b496d0c5f11d48f0e7c1a41c901c5b) without the `--analyze` option to compute raw score and normalized StackScore:
 
 ```
 simeon@RottenApple ld4l-cul-usage>time ./parse_cul_usage_data.py -v --charge-and-browse=/cul/data/voyager/charge-and-browse-counts.txt.gz --circ-trans=/cul/data/voyager/circ_trans.txt.gz 
@@ -58,13 +58,35 @@ The StackScore is an interger from 1 to 100 where 1 is intended to indicates low
   2. 98% of these items are assigned the lowest score of 1, this is equivalent to saying that only 2% get any usage-derived highlighting (Harvard have some usage information 11.5% of all items but many of these are aggregated into the score 1 bin).
   3. Scores have been normalized so that about 140 items (0.001% of all items) are in each of the top scores (100, 99, 98...), rising slowly to 277 items (0.002% of all items) with score 50, and about 1000 items with score 25.
   
-I have calculated a score for Cornell data using a similar normalization approach. Distribution is in `cornell_stackscore_distribution.dat` and below is a comparion of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions.pdf)):
+I calculated an initial score for Cornell data using a similar normalization approach to the Harvard data: putting an equal number of bins in each score 2-100, with the rest in score 1. The raw scoring algorithm was very simple: browses*1 + charges*3 + circulations*5 (which has a double counting of ciculations because they are also present as a charge count). Distribution is in `cornell_stackscore_distribution_2015-0625.dat` and below is a comparion of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-06-25.pdf)):
 
-![Comparison of the Cornell and Harvard StackScore distributions](compare_stackscore_distributions.png)
+![Initial comparison of the Cornell and Harvard StackScore distributions](compare_stackscore_distributions_2015-06-25.png)
 
-Features from the comparison:
+Features from the comparison between Cornell and Harvard data:
 
-  1. 
+  1. The Cornell data has a _thinner_ tail at high stackscore than the Harvard data. This is because the method of grouping is sensitive to the number of different raw scores -- with fewer raw scores there are fewer single-item high scores to group into high stack-score for the Cornell data.
+  2. The Cornell data has a smaller fraction of items with no usage information, and hence stackcore 1, than the Harvard data. In a system such as [StackLife](http://stacklife.law.harvard.edu/) there is essentially no difference shown in the UI between stackscore 1 and stackscore 2. However, if we had a system where search result ordering was adjusted based on stackscore, then a search with no high-scoring results could have result order significantly affected by the differences in low stackscores (as almost 93% of Cornell items have stackscore 1 or 2 in the above).
+
+Without other information to indicate how the distributions should differ between institutions, it seems likely (unproven!) that the most sharable and mixable data would result from each instition's StackScores having a similar disrtibution. I thus adjusted the code to take a cumulative disctribution (counting from stackscore 100 down to 1) as the 'gold standard' and binning new data according to that. I've then used the Harvard distribution as the input to match.
+
+Also, in order to do something that uses the circulation date to provide a smooth score increase for more recent use I have applied an exponential decay to circulation data scoring so the overall algorithm is now:
+
+```
+    score = charges * charge_weight +
+            browses * browse_weight +
+            sum_over_all_circ_trans( circ_weight + 0.5 ^ (circ_trans_age / circ_halflife) )
+```
+
+This means that a circulation that happens today will score (charge_weight+circ_weight) whereas on the happened circ_halflife ago will score (charge_weight+0.5*circ_weight). An old circulation event that is recored only in the charge counts will score just charge_weight. I have no principled way to adjust the weights and halflife, for now they are:
+
+```
+    charge_weight = 2 
+    browse_weight = 1
+    circ_weight = 2
+    circ_halflife =  5 years
+```
+
+
 
 ## Possible additional sources of data not currently used
 
