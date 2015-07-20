@@ -14,7 +14,7 @@ Thus the raw data we have available is already anonymous. This anonymous raw dat
 
 ## CUL usage data
 
-We have three types of local usegae data available:
+We have three types of local usage data available:
 
   1. circulation (charge) counts, a single number per `item_id` which is mapped to a `bib_id`, which includes data imported from the previous library management system (Notis) around 2000.
   2. browse counts, a single number per `item_id` which is mapped to a `bib_id`, which includes data imported from the previous library management system (Notis) around 2000. The counts are unevenly accurate across items because they depend on practices that have varied across libraries and over time.
