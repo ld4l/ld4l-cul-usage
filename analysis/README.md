@@ -58,7 +58,7 @@ The StackScore is an interger from 1 to 100 where 1 is intended to indicates low
   2. 98% of these items are assigned the lowest score of 1, this is equivalent to saying that only 2% get any usage-derived highlighting (Harvard have some usage information 11.5% of all items but many of these are aggregated into the score 1 bin).
   3. Scores have been normalized so that about 140 items (0.001% of all items) are in each of the top scores (100, 99, 98...), rising slowly to 277 items (0.002% of all items) with score 50, and about 1000 items with score 25.
   
-I calculated an initial score for Cornell data using a similar normalization approach to the Harvard data: putting an equal number of bins in each score 2-100, with the rest in score 1. The raw scoring algorithm was very simple: browses*1 + charges*3 + circulations*5 (which has a double counting of ciculations because they are also present as a charge count). Distribution is in `cornell_stackscore_distribution_2015-0625.dat` and below is a comparion of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-06-25.pdf)):
+I calculated an initial score for Cornell data using a similar normalization approach to the Harvard data: putting an equal number of bins in each score 2-100, with the rest in score 1. The raw scoring algorithm was very simple: browses*1 + charges*3 + circulations*5 (which has a double counting of ciculations because they are also present as a charge count). Distribution is in `cornell_stackscore_distribution_2015-06-25.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-06-25.pdf)):
 
 ![Initial comparison of the Cornell and Harvard StackScore distributions](compare_stackscore_distributions_2015-06-25.png)
 
@@ -77,7 +77,7 @@ Also, in order to do something that uses the circulation date to provide a smoot
             sum_over_all_circ_trans( circ_weight + 0.5 ^ (circ_trans_age / circ_halflife) )
 ```
 
-This means that a circulation that happens today will score (charge_weight+circ_weight) whereas on the happened circ_halflife ago will score (charge_weight+0.5*circ_weight). An old circulation event that is recored only in the charge counts will score just charge_weight. I have no principled way to adjust the weights and halflife, for now they are:
+This means that a circulation that happens today will score (`charge_weight`+`circ_weight`) whereas on the happened `circ_halflife` ago will score (`charge_weight`+0.5*`circ_weight`). An old circulation event that is recored only in the charge counts will score just `charge_weight`. I have no principled way to adjust the weights and halflife, for now they are:
 
 ```
     charge_weight = 2 
@@ -86,11 +86,43 @@ This means that a circulation that happens today will score (charge_weight+circ_
     circ_halflife =  5 years
 ```
 
+With these things built in, I did a new run to get the newly normalized stackscore distribution (can also get the actual StackScore dump with `--stackscores=outfile`). To account for the fact that not all items have usage datam the parameter `--total-bib-ids=7068205` is used to set the known total number of `bib_ids` (taken from a dump earlier in the year, a bit out of date):
 
+```
+simeon@RottenApple ld4l-cul-usage>time ./parse_cul_usage_data.py -v --charge-and-browse=/cul/data/voyager/charge-and-browse-counts.txt.gz --circ-trans=/cul/data/voyager/circ_trans.txt.gz --total-bib-ids=7068205
+INFO:root:STARTED at 2015-07-20 16:29:28.293820
+INFO:root:Reading charge and browse counts from /cul/data/voyager/charge-and-browse-counts.txt.gz
+WARNING:root:[/cul/data/voyager/charge-and-browse-counts.txt.gz line 410101] Ignoring "445360   0 0"] need more than 3 values to unpack
+WARNING:root:[/cul/data/voyager/charge-and-browse-counts.txt.gz line 4886959] Ignoring "9087718   0 0"] need more than 3 values to unpack
+WARNING:root:[/cul/data/voyager/charge-and-browse-counts.txt.gz line 5700896] Ignoring "6046736   0 0"] need more than 3 values to unpack
+WARNING:root:[/cul/data/voyager/charge-and-browse-counts.txt.gz line 6620231] Ignoring "7090686   0 0"] need more than 3 values to unpack
+WARNING:root:[/cul/data/voyager/charge-and-browse-counts.txt.gz line 6762032] Ignoring "7216658 5152672 73  3559873"] excessive browse count: 3559873 for bib_id=5152672
+INFO:root:Found 5257154 bib_ids in charge and browse data
+INFO:root:Reading circulation transactions from /cul/data/voyager/circ_trans.txt.gz
+INFO:root:Found 1736038 bib_ids in circulation and transaction data
+INFO:root:Writing summary distribution to raw_scores_dist.dat...
+INFO:root:Reading reference distribution from reference_dist.dat...
+INFO:root:Have 954836 distinct raw scores from 2345788 items
+INFO:root:Writing distribution to stackscore_dist.dat...
+INFO:root:FINISHED at 2015-07-20 16:34:22.236372
+
+real  4m54.581s
+user  4m52.153s
+sys 0m1.751s
+simeon@RottenApple ld4l-cul-usage>cp stackscore_dist.dat analysis/cornell_stackscore_distribution_2015-07-20.dat 
+```
+
+The resulting distribution is in `cornell_stackscore_distribution_2015-07-20.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-07-20.pdf)):
+
+![Comparison of the Cornell and Harvard StackScore distributions with Cornell data normalized to match Harvard. We see that it even recreates the noise the in the Harvard distribution.](compare_stackscore_distributions_2015-07-20.png)
 
 ## Possible additional sources of data not currently used
 
   * Course reserves
   * Number of holdings for a given item
-  * Number of locations with a holding of a given item
+  * Number of locations with a holding of a given item (can get this from item records where we probably want the `perm_loc` code mapped to location, will be null/empty for electronic items). Locations include the annex -- should this perhaps _reduce_ the score for an item? Recorded in field [851](http://www.oclc.org/bibformats/en/8xx/851.html) of the holdings records.
+
+## Work level StackScore?
+
+The above analysis and the Harvard work computes StackScore at the level of catalog bib records. If, as part of LD4L, we use OCLC works data to present views based on aggregate works, how should we combine the StackScore data from included expressions?
   

@@ -1,6 +1,16 @@
 # Local things
 parse_cul_usage_data.log
 
+# Temp output files that might include data we don't want to check in
+browse_dist.dat
+charge_dist.dat
+circ_dist.dat
+raw_scores_dist.dat
+stackscore_dist.dat
+stackscore_dist_comp.dat
+stackscores.dat.gz
+usage_venn.dat
+
 # From github setup...
 # Byte-compiled / optimized / DLL files
 __pycache__/

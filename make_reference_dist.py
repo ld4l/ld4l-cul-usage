@@ -1,20 +1,22 @@
 #!/usr/bin/env python
-""" Make cumulative distribution counting down from stackscore 100 to 1
+""" Make reference distribution over the range 1 to 100
 
 Usage:
 
-simeon@RottenApple ld4l-cul-usage>./make_cumulative_dist.py analysis/harvard_stackscore_distribution.dat  > cumulative_dist.dat
-simeon@RottenApple ld4l-cul-usage>head cumulative_dist.dat 
-# Cumulative distribution counting down from stackscore 100
+> cumulative_dist.dat
+simeon@RottenApple ld4l-cul-usage>git mv cumulative_dist.dat reference_dist.dat
+simeon@RottenApple ld4l-cul-usage>./make_reference_dist.py analysis/harvard_stackscore_distribution.dat  > reference_dist.dat 
+simeon@RottenApple ld4l-cul-usage>head reference_dist.dat 
+# Reference distribution over StackScore 1..100
 # (derived from distribution in analysis/harvard_stackscore_distribution.dat)
 #
-#stackscore cumulative_fraction
-100 0.00001013
-99 0.00002032
-98 0.00003045
-97 0.00004065
-96 0.00005077
-95 0.00006126  
+#stackscore fraction
+10.98078307
+20.00551701
+30.00350775
+40.00177471
+50.00128962
+60.00095700
 """
 import sys
 
@@ -50,11 +52,10 @@ def read_dist(file):
 dfile = sys.argv[1]
 (dist,total) = read_dist(dfile)
 cumulative = 0
-print "# Cumulative distribution counting down from stackscore 100"
+print "# Reference distribution over StackScore 1..100"
 print "# (derived from distribution in %s)" % (dfile)
-print "#\n#stackscore cumulative_fraction"
-for ss in xrange(100,0,-1):
-    cumulative += dist[ss]
-    print "%d %.8f" % (ss,float(cumulative)/total)
+print "#\n#stackscore fraction"
+for ss in xrange(1,101):
+    print "%d\t%.8f" % (ss,float(dist[ss])/total)
 
 

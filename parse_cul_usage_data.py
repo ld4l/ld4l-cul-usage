@@ -12,6 +12,7 @@ from random import SystemRandom
 import re
 import sys
 import math
+import numpy
 
 class SkipLine(Exception):
     """Exception to indicate skipping certain types of line without adding to bad count or flagging"""
@@ -26,6 +27,16 @@ class LineIterator(object):
         self.max_bad = 10;
         self.fh = gzip.open(file,'rb')
         logging.info("Reading %sfrom %s" % (data,file))
+        self.bib_ids = set()
+        self.item_ids = set()
+
+    @property
+    def num_bib_ids(self):
+        return len(self.bib_ids)
+
+    @property
+    def num_item_ids(self):
+        return len(self.item_ids)
 
     def __iter__(self):
         return self
@@ -89,6 +100,8 @@ class CULChargeAndBrowse(LineIterator):
             (item_id,bib_id,charges,browses) = self.line.split()
             bib_id = int(bib_id)
             charges = int(charges)
+            self.bib_ids.add(bib_id)
+            self.item_ids.add(int(item_id))
             if (charges>10000):
                 raise Exception("excessive charge count: %d for bib_id=%d" % (charges,bib_id)) 
             browses = int(browses)
@@ -138,6 +151,8 @@ class CULCircTrans(LineIterator):
             # else try to parse for real
             (trans_id,item_id,bib_id,date) = self.line.split()
             bib_id = int(bib_id)
+            self.bib_ids.add(bib_id)
+            self.item_ids.add(int(item_id))
             date = datetime.datetime.strptime(date, "%d-%b-%y").date()
             return (bib_id,date)
         except SkipLine as sl:
@@ -191,7 +206,21 @@ def make_randomized_subset(opt):
     logging.info("Done subset")
 
 
-def write_dist(data,file,all_bib_ids=0):
+def write_float_dist(data,file):
+    """Write summary of distribution of floats to file"""
+    hist, bin_edges = numpy.histogram(data.values(), bins=100)
+    total_bib_ids = len(data)
+    logging.info("Writing summary distribution to %s..." % file)
+    fh = open(file, 'w')
+    fh.write("# Binned distribution %s\n#\n" % file)
+    fh.write("# total bib_ids = %d\n#\n" % total_bib_ids)
+    fh.write("#start\tend\tcount\tfraction\n")
+    for j, val in enumerate(hist):
+        fh.write("%.1f\t%.1f\t%d\t%.7f\n" % (bin_edges[j],bin_edges[j+1],val,float(val)/total_bib_ids))
+    fh.close()
+
+
+def write_dist(data,file,all_bib_ids=0,extra_score_one=0):
     """Write summary of distribution of data to file
     
     data is a dict[bib_id] with some counts a values, the integer value of the count
@@ -215,14 +244,20 @@ def write_dist(data,file,all_bib_ids=0):
                 else:
                     # default not to include specific example bib_id for individual data sources
                     example_bib_id[count] = '-'
+    if (extra_score_one>0):
+        num_bib_ids[1] = num_bib_ids.get(1,0) + extra_score_one
+        if (1 not in example_bib_id):
+            example_bib_id[1] = '-'
     if (all_bib_ids==0):
-        all_bib_ids=total_bib_ids
-    logging.info("Writing %s..." % file)
+        all_bib_ids = total_bib_ids + extra_score_one
+    logging.info("Writing distribution to %s..." % file)
     fh = open(file, 'w')
     fh.write("# Distribution %s\n" % file)
     fh.write("#\n# total bib_ids with non-zero counts = %d\n" % total_bib_ids)
-    fh.write("# total bib_ids with any usage data = %d\n" % all_bib_ids)
-    fh.write("# total of all counts = %d\n" % total_counts)
+    if (extra_score_one>0):
+        fh.write("# extra bib_ids with score one = %d\n" % extra_score_one)
+    fh.write("# total bib_ids with usage data + extras = %d\n" % all_bib_ids)
+    fh.write("# sum of all counts = %d\n" % total_counts)
     fh.write("#\n# col1 = int(count)\n# col2 = num_bib_ids\n")
     fh.write("# col3 = fraction of total bib_ids with non-zero counts for this metric\n")
     fh.write("# col4 = fraction of all bib_ids with any usage data\n")
@@ -233,6 +268,22 @@ def write_dist(data,file,all_bib_ids=0):
                   float(num_bib_ids[count])/total_bib_ids,
                   float(num_bib_ids[count])/all_bib_ids,
                   example_bib_id[count]))
+    fh.close()
+
+
+def write_stackscores(scores,file):
+    """Write individual StackScores to gzipped file
+
+    Note that this data will include only bib_ids mentioned in the usage data. It 
+    will not include extra bib_ids that are assigned StackScore 1.
+    """
+    logging.info("Writing StackScores to %s..." % file)
+    fh = gzip.open(file, 'w')
+    fh.write("# StackScores by bib_id, %s\n#\n" % file)
+    fh.write("# total bib_ids = %d\n#\n" % len(scores))
+    fh.write("#bib_id\tStackScore\n")
+    for bib_id in sorted(scores.keys()):
+        fh.write("%d\t%d\n" % (bib_id,scores[bib_id]))
     fh.close()
 
 
@@ -292,6 +343,7 @@ def analyze_distributions(opt):
         fh.write("%7d items have %s%s data%s\n" % (exc_totals[n],just,'+'.join(desc),out_of))
     fh.close()
 
+
 def compute_raw_scores(opt):
     """Read in usage data and compute StackScores
 
@@ -305,63 +357,124 @@ def compute_raw_scores(opt):
     means that a circulation that happens today will score (charge_weight+circ_weight) whereas
     on the happened circ_halflife ago will score (charge_weight+0.5*circ_weight). An old 
     circulation event that is recored only in the charge counts will score just charge_weight.
-
     """
-
     scores = {}
     charge_weight = 2
     browse_weight = 1
     circ_weight = 2
     circ_halflife =  5.0 * 365.0 # number of days back that circ trans has half circ_weight
 
-    for (bib_id,charges,browses) in CULChargeAndBrowse(opt.charge_and_browse):
+    cab = CULChargeAndBrowse(opt.charge_and_browse)
+    for (bib_id,charges,browses) in cab:
         #print "%d %d %d" % (bib_id,charges,browses)
         scores[bib_id] = scores.get(bib_id,0) + charges*charge_weight + browses*browse_weight
+    logging.info("Found %d bib_ids in charge and browse data" % (cab.num_bib_ids))
     
     today = datetime.datetime.now().date()
-    for (bib_id,date) in CULCircTrans(opt.circ_trans):
+    ct = CULCircTrans(opt.circ_trans)
+    for (bib_id,date) in ct:
         age = (today - date).days # age in years since circ transaction
         score = circ_weight * math.pow(0.5, age/circ_halflife )
         #print "%d %s %.3f %.3f" % (bib_id,str(date),age,score)
         scores[bib_id] = scores.get(bib_id,0) + score
-
-    write_dist(scores, 'raw_scores_dist.dat')
+    logging.info("Found %d bib_ids in circulation and transaction data" % (ct.num_bib_ids))
+    write_float_dist(scores, opt.raw_scores_dist)
     return(scores)
 
-def compute_stackscore(scores,opt):
-    # Now normalize on a scale of 2-100 inclusive. The score of 1 will be reserved 
-    # for all items that have no usage data as is done for the Harvard StackScore.
+
+def read_reference_dist(file):
+    """Read reference distribution from file
+
+    File format has # for comment linesm then data:
+
+    #stackscore fraction
+    100 0.00001013
+    99 0.00001013
+    98 0.00003045
+    ...
+    """
+    logging.info("Reading reference distribution from %s..." % (file))
+    fh = open(file,'r')
+    dist = {}
+    total = 0.0
+    for line in fh:
+        if (re.match('^#',line)):
+            continue
+        (stackscore, fraction)= line.split()
+        fraction = float(fraction)
+        dist[int(stackscore)] = fraction
+        total += fraction
+        #print "%d %f" % (stackscore,fraction)
+    if (abs(1.0-total)>0.000001):
+        logging.warning("Expected distribution from %s to sum to 1.0, got %f" % (file,total))
+    return dist
+
+
+def compute_stackscore(scores, dist, opt):
+    """Compute StackScores on a scale of 1-100 to match reference distribution
+
+    The score of 1 will be reserved for all items that have no usage data as is done for 
+    the Harvard StackScore. The reference distribution is suppied in dist and is assumed to
+    sum be over the range 1 to 100 and sum to 1.0.
+
+    We do not expect the the scores data to include all bib_ids, the total number of items
+    is taken from the input parameter opt.total_bib_ids if specified (!=0) and thus there 
+    will be at least (opt.total_bib_ids - len(scores)) items that will get score 1.
+    """
+    if (opt.total_bib_ids):
+        total_items = opt.total_bib_ids
+        if (len(scores)>total_items):
+            raise Exception("Sanity check failed: more scores (%d) than total_bib_ids (%d)!" % (len(scores),total_bib_ids))
+        extra_items_with_score_one = (total_items-len(scores))
+    else:
+        total_items = len(scores)
+        extra_items_with_score_one = 0
+    # Get counts of items for each raw score (which may be a float)
     counts = {}
     for bib_id in scores:
         score = scores[bib_id]
         counts[score] = counts.get(score,0) + 1
-    # Determine StackScore for each score using the same algoritm as Harvard
-    # where will collect together approx the same number of distinct raw scores
-    # in each bin
+    # Determine StackScore for each score by matching to the reference distribution in
+    # dist. We do this starting from StackScore 100 and adding extra raw scores in
+    # to meet the cumulative total most closely.
     num_scores = len(counts)
-    scores_per_stackscore = num_scores/98.99
+    logging.info("Have %d distinct raw scores from %d items" % (num_scores,len(scores)))
+    count = 0
     stackscore_by_score = {}
     stackscore_counts = {}
     n = 0
+    ss = 100
+    ss_frac = dist[ss] # cumulative fraction we want to get to for this StackScore
     for score in reversed(sorted(counts.keys())):
-        n += 1
-        ss = 100 - int(n/scores_per_stackscore)
+        # do we add to this StackScore or the next lower?
+        n = counts[score]
+        ss_count = int(ss_frac*total_items) # integer cumulative count
+        if ((count+n > ss_count) and ((count+n)-ss_count) > (ss_count-count) and ss>1):
+            # should add to next lower StackScore
+            ss -= 1
+            ss_frac += dist[ss]
+        count += n
         stackscore_by_score[score] = ss
-        stackscore_counts[ss] = stackscore_counts.get(ss,0) + counts[score]
-    # write table to compare with Harvard distribution
-    fh = open('cornell_stackscore_distribution.dat','w')
-    total_items = 8000000
-    num_with_score = len(scores)
-    stackscore_counts[1] = total_items - num_with_score
-    fh.write("record_count    stackscore      fraction_of_records\n")
-    for ss in sorted(stackscore_counts.keys()):
-        fh.write("%d\t%d\t%.7f\n" % (stackscore_counts[ss],ss,float(stackscore_counts[ss])/total_items))
+        stackscore_counts[ss] = stackscore_counts.get(ss,0) + n
+    # add in extra counts for score 1
+    if (ss!=1 and ss!=2):
+        logging.warning("Distribution seems odd: expected to have ss==1 or ss==2 after normalizing, got ss=%d" % (ss))
+    stackscore_counts[1] = stackscore_counts.get(1,0) + extra_items_with_score_one
+    # write table comparing with reference distribution
+    fh = open(opt.stackscore_comp,'w')
+    fh.write("# Comparison of StackScore distribution with reference distribution\n#\n")
+    fh.write("#score\trecords\tfraction\treference_fraction\n")
+    for ss in range(1,101):
+        fh.write("%d\t%d\t%.7f\t%.7f\n" % (ss,stackscore_counts.get(ss,0),float(stackscore_counts.get(ss,0))/total_items,dist.get(ss,0)))
     fh.close()
-    # Now we have lookup table, make set of stackscores...
+    # now we have lookup table of score->StackScore, make set of StackScores, dump
+    # them and write out the distribution
     stackscore={}
     for bib_id in scores:
         stackscore[bib_id]=stackscore_by_score[scores[bib_id]]
-    write_dist(stackscore, 'stackscore_dist.dat')
+    if (opt.stackscores):
+        write_stackscores(stackscore, opt.stackscores)
+    write_dist(stackscore, opt.stackscore_dist, extra_score_one=extra_items_with_score_one)
 
 ##################################################################
 
@@ -372,6 +485,18 @@ p.add_option('--charge-and-browse', action='store', default='testdata/subset-cha
              help="Charge and browse num_bib_ids, gzipped input file (default %default)")
 p.add_option('--circ-trans', action='store', default='testdata/subset-circ-trans.tsv.gz',
              help="Circulation transactions, gzipped input file (default %default)")
+p.add_option('--total-bib-ids', action='store', type='int', default=0,
+             help="Total number of bib_ids in the catalog (omit to use only input data)")
+p.add_option('--reference-dist', action='store', default='reference_dist.dat',
+             help="Reference distribution over the range 1..100 to match to (default %default)")
+p.add_option('--raw-scores-dist', action='store', default='raw_scores_dist.dat',
+             help="Distribution of raw scores (default %default)")
+p.add_option('--stackscores', action='store',
+             help="StackScores output file (not written by default, will be gzipped)")
+p.add_option('--stackscore_dist', action='store', default='stackscore_dist.dat',
+             help="StackScore distribution output file (default %default)")
+p.add_option('--stackscore_comp', action='store', default='stackscore_dist_comp.dat',
+             help="StackScore distribution comparison with reference (default %default)")
 p.add_option('--logfile', action='store',
              help="Send log output to specified file")
 p.add_option('--examples', action='store_true',
@@ -406,7 +531,8 @@ elif (opt.analyze):
     analyze_distributions(opt)
 else:
     scores = compute_raw_scores(opt)
-    compute_stackscore(scores_opt)
+    dist = read_reference_dist(opt.reference_dist)
+    compute_stackscore(scores, dist, opt)
 logging.info("FINISHED at %s" % (datetime.datetime.now()))
 
 

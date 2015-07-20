@@ -1,0 +1,16 @@
+set title "Histogram of fractions of items per StackScore"
+set ylabel "Fraction of items"
+set xlabel "StackScore"
+#set noborder
+set key right top
+set tics in
+#set noxtics
+set grid
+set xrange [0:101]
+set yrange [0.000009:1.1]
+set logscale y
+set boxwidth 0.4
+
+plot "harvard_stackscore_distribution.dat" using ($2-0.25):3 title "Harvard" with boxes fs solid 0.7,\
+     "cornell_stackscore_distribution_2015-07-20.dat" using ($1+0.25):4 title "Cornell" with boxes fs solid 0.7
+
