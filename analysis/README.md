@@ -58,7 +58,7 @@ The StackScore is an interger from 1 to 100 where 1 is intended to indicates low
   2. 98% of these items are assigned the lowest score of 1, this is equivalent to saying that only 2% get any usage-derived highlighting (Harvard have some usage information 11.5% of all items but many of these are aggregated into the score 1 bin).
   3. Scores have been normalized so that about 140 items (0.001% of all items) are in each of the top scores (100, 99, 98...), rising slowly to 277 items (0.002% of all items) with score 50, and about 1000 items with score 25.
   
-I calculated an initial score for Cornell data using a similar normalization approach to the Harvard data: putting an equal number of bins in each score 2-100, with the rest in score 1. The raw scoring algorithm was very simple: browses*1 + charges*3 + circulations*5 (which has a double counting of ciculations because they are also present as a charge count). Distribution is in `cornell_stackscore_distribution_2015-06-25.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-06-25.pdf)):
+I calculated an initial score for Cornell data using a similar normalization approach to the Harvard data: putting an equal number of bins in each score 2-100, with the rest in score 1. The raw scoring algorithm was very simple: `browses`*1 + `charges`*3 + `circulations`*5 (which has a double counting of ciculations that I didn't notice at the time because they are also present as a charge count). The resulting distribution is in `cornell_stackscore_distribution_2015-06-25.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-06-25.pdf)):
 
 ![Initial comparison of the Cornell and Harvard StackScore distributions](compare_stackscore_distributions_2015-06-25.png)
 
@@ -67,7 +67,7 @@ Features from the comparison between Cornell and Harvard data:
   1. The Cornell data has a _thinner_ tail at high stackscore than the Harvard data. This is because the method of grouping is sensitive to the number of different raw scores -- with fewer raw scores there are fewer single-item high scores to group into high stack-score for the Cornell data.
   2. The Cornell data has a smaller fraction of items with no usage information, and hence stackcore 1, than the Harvard data. In a system such as [StackLife](http://stacklife.law.harvard.edu/) there is essentially no difference shown in the UI between stackscore 1 and stackscore 2. However, if we had a system where search result ordering was adjusted based on stackscore, then a search with no high-scoring results could have result order significantly affected by the differences in low stackscores (as almost 93% of Cornell items have stackscore 1 or 2 in the above).
 
-Without other information to indicate how the distributions should differ between institutions, it seems likely (unproven!) that the most sharable and mixable data would result from each instition's StackScores having a similar disrtibution. I thus adjusted the code to take a cumulative disctribution (counting from stackscore 100 down to 1) as the 'gold standard' and binning new data according to that. I've then used the Harvard distribution as the input to match.
+Without other information to indicate how the distributions should differ between institutions, it seems likely (unproven!) that the most sharable and mixable data would result from each instition's StackScores having a similar disrtibution. I thus adjusted the code to take a reference distribution (derived from the Harvard distribution) as the 'gold standard' and to bin new data according to that. Of course, we could use any other chosen distribution.
 
 Also, in order to do something that uses the circulation date to provide a smooth score increase for more recent use I have applied an exponential decay to circulation data scoring so the overall algorithm is now:
 
@@ -86,7 +86,7 @@ This means that a circulation that happens today will score (`charge_weight`+`ci
     circ_halflife =  5 years
 ```
 
-With these things built in, I did a new run to get the newly normalized stackscore distribution (can also get the actual StackScore dump with `--stackscores=outfile`). To account for the fact that not all items have usage datam the parameter `--total-bib-ids=7068205` is used to set the known total number of `bib_ids` (taken from a dump earlier in the year, a bit out of date):
+With these things built in, I did a new run to get the newly normalized stackscore distribution (can also get the actual StackScore dump with `--stackscores=stackscores.dat.gz`). To account for the fact that not all items have usage data, the parameter `--total-bib-ids=7068205` is used to set the known total number of `bib_ids` (taken from a dump earlier in the year, a little out of date):
 
 ```
 simeon@RottenApple ld4l-cul-usage>time ./parse_cul_usage_data.py -v --charge-and-browse=/cul/data/voyager/charge-and-browse-counts.txt.gz --circ-trans=/cul/data/voyager/circ_trans.txt.gz --total-bib-ids=7068205
@@ -112,9 +112,17 @@ sys 0m1.751s
 simeon@RottenApple ld4l-cul-usage>cp stackscore_dist.dat analysis/cornell_stackscore_distribution_2015-07-20.dat 
 ```
 
-The resulting distribution is in `cornell_stackscore_distribution_2015-07-20.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-07-20.pdf)):
+The resulting distribution is in `cornell_stackscore_distribution_2015-07-20.dat` and below is a comparison of the Cornell and Harvard distributions (also [PDF](compare_stackscore_distributions_2015-07-20.pdf)). We see that the Cornell distribution even recreates the noise the in the Harvard distribution. Presumably if we move forward with the creation of sharable data we should both attempt to match some agreed distribution.
 
-![Comparison of the Cornell and Harvard StackScore distributions with Cornell data normalized to match Harvard. We see that it even recreates the noise the in the Harvard distribution.](compare_stackscore_distributions_2015-07-20.png)
+![Comparison of the Cornell and Harvard StackScore distributions with Cornell data normalized to match Harvard data.](compare_stackscore_distributions_2015-07-20.png)
+
+## Are the StackScores any good?
+
+The current calculation uses somewhat arbitrary scaling of availale data. How can we tell whether it is likely to be of any use? How we can know how to improve it? A few thoughts:
+
+  * Discuss Harvard experience with [StackLife](http://stacklife.law.harvard.edu/) and feedback on that
+  * Appropriate scoring probably depends on how the score is used. How would these differ between StackLife and, say, weighting in a search?
+  * A simple way to get some sort of "validation" for the items with high StackScores would be to show the items to librarians or other subject experts. A slightly more sophisticated way to question would be to ask or review comparitive StackScores between items in a particular subject area. Neither of these would get at the question of items that don't have high StackScore but perhaps would be expected to. Once could ask experts for items they thing should be highly ranked and then see where they sit (might get to work/manifestation issues here).
 
 ## Possible additional sources of data not currently used
 
