@@ -121,7 +121,7 @@ The resulting distribution is in `cornell_stackscore_distribution_2015-07-20.dat
 The current calculation uses somewhat arbitrary scaling of availale data. How can we tell whether it is likely to be of any use? How we can know how to improve it? A few thoughts:
 
   * Discuss Harvard experience with [StackLife](http://stacklife.law.harvard.edu/) and feedback on that
-  * Appropriate scoring probably depends on how the score is used. How would these differ between StackLife and, say, weighting in a search?
+  * Appropriate scoring probably depends on how the score is used. How would "appropriate" differ between StackLife and, say, weighting in a search?
   * A simple way to get some sort of "validation" for the items with high StackScores would be to show the items to librarians or other subject experts. A slightly more sophisticated way to question would be to ask or review comparitive StackScores between items in a particular subject area. Neither of these would get at the question of items that don't have high StackScore but perhaps would be expected to. Once could ask experts for items they thing should be highly ranked and then see where they sit (might get to work/manifestation issues here).
 
 ## Possible additional sources of data not currently used
