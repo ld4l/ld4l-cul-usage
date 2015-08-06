@@ -10,7 +10,7 @@ The [CUL privacy policy](https://www.library.cornell.edu/privacy) and associated
 > 
 > The Library seeks to protect user privacy by purging borrowing records as soon as possible.  In general, the link connecting a patron with a borrowed item is broken once the item is returned.  The exception is when a bill for the item is generated.  In that case, the information on who borrowed the item is retained indefinitely in our system.  For security reasons, records of who requested items from the Library’s special collections are also retained indefinitely.
 
-Thus the raw data we have available is already anonymous. This anonymous raw data might still allow derivation of some co-usage information but we have no plans to attempt this for the LD4L project.
+Thus the raw data we have available is already anonymous. This anonymous raw data might still allow derivation of some co-usage information but we have no plans to use such information in the LD4L project, and the StackScores published will obscure it by their large granularity and periodic updates. See [privacy issues](README_PRIVACY.md) discussion.
 
 ## CUL usage data
 
