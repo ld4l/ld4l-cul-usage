@@ -129,6 +129,7 @@ The current calculation uses somewhat arbitrary scaling of availale data. How ca
   * Course reserves
   * Number of holdings for a given item
   * Number of locations with a holding of a given item (can get this from item records where we probably want the `perm_loc` code mapped to location, will be null/empty for electronic items). Locations include the annex -- should this perhaps _reduce_ the score for an item? Recorded in field [851](http://www.oclc.org/bibformats/en/8xx/851.html) of the holdings records.
+  * What is status of BorrowDirect and ILL transactions? Are they or can they be included? [DLITSYS-1729](https://issues.library.cornell.edu/browse/DLITSYS-1729)
 
 ## Work level StackScore?
 
