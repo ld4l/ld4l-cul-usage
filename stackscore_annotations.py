@@ -56,7 +56,7 @@ cornell_prefix = 'http://draft.ld4l.org/cornell'
 namespace_manager = NamespaceManager(Graph())
 cnt = bind_namespace(namespace_manager, 'cnt', 'http://www.w3.org/2011/content#')
 oa = bind_namespace(namespace_manager, 'oa', 'http://www.w3.org/ns/oa#')
-ld4l = bind_namespace(namespace_manager, 'ld4l', 'http://ld4l.org/ontology/bib/')
+ld4l = bind_namespace(namespace_manager, 'ld4l', 'http://bib.ld4l.org/ontology/')
 
 # Build URIRefs we'll need ahead for speed...
 ld4l_hasAnnotation = ld4l['hasAnnotation']
@@ -154,12 +154,13 @@ ss_file = 'stackscores.dat.gz'
 scores = read_stackscores(ss_file)
 
 rdf_type = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type')
-ld4l_instance = URIRef('http://ld4l.org/ontology/bib/Instance')
+ld4l_instance = URIRef('http://bib.ld4l.org/ontology/Instance')
 
 # Iterate from bib_files looking for Cornell ld4l:Instances to annotate with StackScores.
 # For each input file, create an output file in the local directory but with a 
 # similar name to the input file that contains the annotations.
-bib_files = glob.glob('/cul/data/ld4l/2015-12-09_sample_records/ld4l/cornell*')
+#bib_files = glob.glob('/cul/data/ld4l/2015-12-09_sample_records/ld4l/cornell*')
+bib_files = glob.glob('/cul/data/ld4l/2016-01-08_cornell/bfInstance.nt.gz')
 #bib_files = glob.glob('/cul/data/ld4l/cornell_rdf/*.nt.gz')
 nts = NTriplesStreamer()
 for bib_file in bib_files:
@@ -170,7 +171,7 @@ for bib_file in bib_files:
         # Look for triples: s rdf:type ld4l:instance
         if (p == rdf_type and o == ld4l_instance):
             # bibid is number at end of bf:Work URI
-            m = re.match(r'''http://draft.ld4l.org/cornell/(individual/)?(\d+)instance(\d+)$''',str(s))
+            m = re.match(r'''http://draft.ld4l.org/cornell/(individual/)?n(\d+)instance(\d+)$''',str(s))
             if (m):
                 bibid = int(m.group(2))
                 add_score(g,s,scores.get(bibid,1)) #score=1 if no value stored
@@ -178,4 +179,7 @@ for bib_file in bib_files:
                 raise Exception("Unexpected instance id in: %s %s %s" % (s,p,o))
     ss_anno_fh.write(g.serialize(format='nt'))
     ss_anno_fh.close()
+    # Start new graph
+    g = Graph()
+    g.namespace_manager = namespace_manager
 
