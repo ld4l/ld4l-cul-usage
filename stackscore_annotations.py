@@ -71,8 +71,8 @@ cnt_chars = cnt['chars']
 def add_score(g, instance, score):
     """Add to graph g the StackScore score as annotation on instance."""
     istr = str(instance) # base ss-anno and ss-body URIs in instance URI
-    annotation = URIRef('%s/ss-anno' % (istr))
-    body = URIRef('%s/ss-body' % (istr))
+    annotation = URIRef('%s-ss-anno' % (istr))
+    body = URIRef('%s-ss-body' % (istr))
     score = Literal(str(score))
     g.add( (instance, ld4l_hasAnnotation, annotation) )
     g.add( (annotation, oa_hasTarget, instance) )
