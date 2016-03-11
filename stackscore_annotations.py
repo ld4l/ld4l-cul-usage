@@ -4,13 +4,15 @@ Add StackScore usage data as annotations.
 
 Timing:
   10s to read 2.3M stackscores into dict
-   8s to parse 1430 sample records and write annotations
-  => expect ~12h to write annotations for 8M records
+  ??s to parse ?? records from LD4L RDF and write annotations
+  => expect ~?? to write annotations for 10M records in ?? files
 
 """
 
 import glob
 import gzip
+import logging
+import optparse
 import os.path
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import Namespace, NamespaceManager, RDF
@@ -32,7 +34,7 @@ def read_stackscores(filename):
 
     Each line is simply bibid and stackscore
     """
-    print("Reading StackScores from %s..." % (filename))
+    logging.info("Reading StackScores from %s..." % (filename))
     fh = gzip.open(filename,'r')
     scores = {}
     n = 0
@@ -44,7 +46,7 @@ def read_stackscores(filename):
         bibid = int(bibid)
         score = int(score)
         scores[bibid]=score
-    print("Read %d StackScores"%(len(scores)))
+    logging.info("Read %d StackScores"%(len(scores)))
     return scores
 
 def bind_namespace(ns_mgr, prefix, namespace):
@@ -57,16 +59,22 @@ namespace_manager = NamespaceManager(Graph())
 cnt = bind_namespace(namespace_manager, 'cnt', 'http://www.w3.org/2011/content#')
 oa = bind_namespace(namespace_manager, 'oa', 'http://www.w3.org/ns/oa#')
 ld4l = bind_namespace(namespace_manager, 'ld4l', 'http://bib.ld4l.org/ontology/')
+rdf = bind_namespace(namespace_manager, 'rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#')
 
 # Build URIRefs we'll need ahead for speed...
-ld4l_hasAnnotation = ld4l['hasAnnotation']
 oa_hasTarget = oa['hasTarget']
 oa_Annotation = oa['Annotation']
 oa_hasBody = oa['hasBody']
 oa_motivatedBy = oa['motivatedBy']
+ld4l_Instance = ld4l['Instance']
+ld4l_identifiedBy = ld4l['identifiedBy']
+ld4l_LocalIlsIdentifier = ld4l['LocalIlsIdentifier']
+ld4l_hasAnnotation = ld4l['hasAnnotation']
 ld4l_stackViewScoring = ld4l['stackViewScoring']
 cnt_ContentAsText = cnt['ContentAsText']
 cnt_chars = cnt['chars']
+rdf_type = rdf['type']
+rdf_value = rdf['value']
 
 def add_score(g, instance, score):
     """Add to graph g the StackScore score as annotation on instance."""
@@ -145,41 +153,96 @@ class NTriplesStreamer(NTriplesParser):
                 # no new data, just keep going
                 pass
         if (self.bad_lines):
-            print("Warning - ignored %d bad lines" % (self.bad_lines))
+            logging.warn("Warning - ignored %d bad lines" % (self.bad_lines))
 
-g = Graph()
-g.namespace_manager = namespace_manager
+p = optparse.OptionParser(description='Stackscore RDF generation for LD4L',
+                          usage="%0 [[input-files.nt]]")
+p.add_option('--success-log', action='store', default='Success.log',
+             help="Input success log file (default: %default)")
+p.add_option('--outfile', action='store', default='netid_orcid_associations.nt',
+             help="Output ntriples file (default: %default)")
+(opts, bib_files) = p.parse_args()
+
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y/%m/%dT%H:%M:%S', level=logging.INFO)
 
 ss_file = 'stackscores.dat.gz'
 scores = read_stackscores(ss_file)
 
-rdf_type = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type')
-ld4l_instance = URIRef('http://bib.ld4l.org/ontology/Instance')
-
-# Iterate from bib_files looking for Cornell ld4l:Instances to annotate with StackScores.
+# Iterate from bib_files treating each one separately because we know
+# that they conatin complete LD4L models for a number of MARC records.
+# 
+# In each file look for Cornell ld4l:Instances to annotate with StackScores 
+# based on extracting the bibid from ld4l:LocalIlsIdentifier triples. Data
+# pattern is:
+#
+# instance? rdf:type ld4l:Instance .
+# instance? ld4l:identifiedBy ils_id? .
+# ild_id? rdf:type ld4l:LocalIlsIdentifier .
+# ils_id? rdf:value literal_value? .
+#
 # For each input file, create an output file in the local directory but with a 
 # similar name to the input file that contains the annotations.
-#bib_files = glob.glob('/cul/data/ld4l/2015-12-09_sample_records/ld4l/cornell*')
-bib_files = glob.glob('/cul/data/ld4l/2016-01-08_cornell/bfInstance.nt.gz')
-#bib_files = glob.glob('/cul/data/ld4l/cornell_rdf/*.nt.gz')
+#
 nts = NTriplesStreamer()
 for bib_file in bib_files:
-    ss_anno_file = split_multiext(os.path.basename(bib_file))[0] + "-ss-anno.nt.gz"
-    ss_anno_fh = gzip.open(ss_anno_file,'w')
-    print("Parsing %s, writing %s" % (bib_file,ss_anno_file))
-    for (s,p,o) in nts.parse_generator(bib_file):
-        # Look for triples: s rdf:type ld4l:instance
-        if (p == rdf_type and o == ld4l_instance):
-            # bibid is number at end of bf:Work URI
-            m = re.match(r'''http://draft.ld4l.org/cornell/(individual/)?n(\d+)instance(\d+)$''',str(s))
-            if (m):
-                bibid = int(m.group(2))
-                add_score(g,s,scores.get(bibid,1)) #score=1 if no value stored
-            else:
-                raise Exception("Unexpected instance id in: %s %s %s" % (s,p,o))
-    ss_anno_fh.write(g.serialize(format='nt'))
-    ss_anno_fh.close()
-    # Start new graph
+    # Start new greph for this file
     g = Graph()
     g.namespace_manager = namespace_manager
+    # Work out output file name
+    ss_anno_file = split_multiext(os.path.basename(bib_file))[0] + "-ss-anno.nt.gz"
+    ss_anno_fh = gzip.open(ss_anno_file,'w')
+    logging.info("Parsing %s, writing %s" % (bib_file,ss_anno_file))
+    # Read the file pulling out four types of triple we need and
+    # stashing the results in in-memory data structures:
+    instances = set()
+    id_by = {}
+    ils_ids = set()
+    rdf_val = {}
+    n = 0
+    for (s,p,o) in nts.parse_generator(bib_file):
+        n += 1
+        try:
+            if (p == rdf_type):
+                if (o == ld4l_Instance):
+                    # instance? rdf:type ld4l:instance --> instances
+                    instances.add(str(s))
+                elif (o == ld4l_LocalIlsIdentifier):
+                    ils_ids.add(str(s))
+            elif (p == ld4l_identifiedBy):
+                # instance? ld4l:identifiedBy ils_id? .
+                ss = str(s)
+                if (ss not in id_by):
+                    id_by[ss] = []
+                id_by[ss].append(str(o))
+            elif (p == rdf_value):
+                # ils_id? rdf:value literal_value? . --- ASSUMING UNIQUE BY ILS_ID
+                ss = str(s)
+                if (ss not in rdf_val):
+                    rdf_val[ss] = []
+                rdf_val[ss].append(str(o))
+        except Exception as c:
+            logging.warn("%s - skipping triple (%s,%s,%s)" % (str(e),str(s),str(p),str(o)))
+    logging.info("-- read %d triples, extracted %d instances, %d ils_ids" % (n, len(instances), len(ils_ids)))
+    # Go through all instances seeing whether we find a bibid
+    n = 0
+    for instance in instances:
+        try:
+            by_id = None
+            for by in id_by[instance]:
+                if by in ils_ids:
+                    by_id = by
+                    break
+            bibids = rdf_val[by_id]
+            if (len(bibids)!=1):
+                raise Exception("Expected one bibid for ILS id %s, got %d" % (by_id,len(bibids)))
+            add_score(g, URIRef(instance), scores.get(int(bibids[0]),1)) #score=1 if no value stored
+            n += 1
+        except Exception as e:
+            logging.warn("%s - skipping instance %s" % (str(e),instance))
+    # Write out
+    ss_anno_fh.write(g.serialize(format='nt'))
+    ss_anno_fh.close()
+    logging.info("-- wrote %d scores" % (n))
+
+logging.info("Done")
 

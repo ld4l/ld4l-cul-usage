@@ -1,0 +1,4 @@
+<http://draft.ld4l.org/cornell/n46c0e27ff5fb25a3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://bib.ld4l.org/ontology/Instance> .
+<http://draft.ld4l.org/cornell/n46c0e27ff5fb25a3> <http://bib.ld4l.org/ontology/identifiedBy> <http://draft.ld4l.org/cornell/n2050d400d7202d95> .
+<http://draft.ld4l.org/cornell/n2050d400d7202d95> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://bib.ld4l.org/ontology/LocalIlsIdentifier> .
+<http://draft.ld4l.org/cornell/n2050d400d7202d95> <http://www.w3.org/1999/02/22-rdf-syntax-ns#value> "16578" .
