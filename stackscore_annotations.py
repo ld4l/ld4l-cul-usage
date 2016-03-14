@@ -17,11 +17,14 @@ import os.path
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import Namespace, NamespaceManager, RDF
 import re
+import time
 
-def split_multiext(filename):
+def split_multiext(filename, max=2):
     """Wrapper around os.path.splitext to remove potentially multiple extensions."""
     all_ext = ''
-    while True:
+    n = 0
+    while (n < max):
+        n += 1
         (filename,ext) = os.path.splitext(filename)
         if (ext):
             all_ext = ext + all_ext
@@ -155,39 +158,25 @@ class NTriplesStreamer(NTriplesParser):
         if (self.bad_lines):
             logging.warn("Warning - ignored %d bad lines" % (self.bad_lines))
 
-p = optparse.OptionParser(description='Stackscore RDF generation for LD4L',
-                          usage="%0 [[input-files.nt]]")
-p.add_option('--success-log', action='store', default='Success.log',
-             help="Input success log file (default: %default)")
-p.add_option('--outfile', action='store', default='netid_orcid_associations.nt',
-             help="Output ntriples file (default: %default)")
-(opts, bib_files) = p.parse_args()
+def process_file(bib_file, namespace_manager):
+    """Process one file producing one annotation file.
 
-logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y/%m/%dT%H:%M:%S', level=logging.INFO)
+    In each file look for Cornell ld4l:Instances to annotate with StackScores 
+    based on extracting the bibid from ld4l:LocalIlsIdentifier triples. Data
+    pattern is:
 
-ss_file = 'stackscores.dat.gz'
-scores = read_stackscores(ss_file)
+    instance? rdf:type ld4l:Instance .
+    instance? ld4l:identifiedBy ils_id? .
+    ild_id? rdf:type ld4l:LocalIlsIdentifier .
+    ils_id? rdf:value literal_value? .
 
-# Iterate from bib_files treating each one separately because we know
-# that they conatin complete LD4L models for a number of MARC records.
-# 
-# In each file look for Cornell ld4l:Instances to annotate with StackScores 
-# based on extracting the bibid from ld4l:LocalIlsIdentifier triples. Data
-# pattern is:
-#
-# instance? rdf:type ld4l:Instance .
-# instance? ld4l:identifiedBy ils_id? .
-# ild_id? rdf:type ld4l:LocalIlsIdentifier .
-# ils_id? rdf:value literal_value? .
-#
-# For each input file, create an output file in the local directory but with a 
-# similar name to the input file that contains the annotations.
-#
-nts = NTriplesStreamer()
-for bib_file in bib_files:
+    For each input file, create an output file in the local directory but with a 
+    similar name to the input file that contains the annotations.
+    """
     # Start new greph for this file
     g = Graph()
     g.namespace_manager = namespace_manager
+    nts = NTriplesStreamer()
     # Work out output file name
     ss_anno_file = split_multiext(os.path.basename(bib_file))[0] + "-ss-anno.nt.gz"
     ss_anno_fh = gzip.open(ss_anno_file,'w')
@@ -220,29 +209,64 @@ for bib_file in bib_files:
                 if (ss not in rdf_val):
                     rdf_val[ss] = []
                 rdf_val[ss].append(str(o))
-        except Exception as c:
-            logging.warn("%s - skipping triple (%s,%s,%s)" % (str(e),str(s),str(p),str(o)))
+        except Exception as e:
+            logging.warn("%s - skipping triple (%r,%r,%r)", str(e), s, p, o)
     logging.info("-- read %d triples, extracted %d instances, %d ils_ids" % (n, len(instances), len(ils_ids)))
     # Go through all instances seeing whether we find a bibid
     n = 0
     for instance in instances:
         try:
             by_id = None
+            if (instance not in id_by):
+                continue # an instance with no bf:identifiedBy
             for by in id_by[instance]:
                 if by in ils_ids:
                     by_id = by
                     break
+            if (by_id is None or by_id not in rdf_val):
+                continue # Non-ILS id, skip silently
             bibids = rdf_val[by_id]
             if (len(bibids)!=1):
-                raise Exception("Expected one bibid for ILS id %s, got %d" % (by_id,len(bibids)))
+                raise Exception("Expected one bibid for ILS id %s, got %d", by_id, len(bibids))
             add_score(g, URIRef(instance), scores.get(int(bibids[0]),1)) #score=1 if no value stored
             n += 1
         except Exception as e:
-            logging.warn("%s - skipping instance %s" % (str(e),instance))
+            if (e != None):
+                logging.warn("%r - skipping instance %r", e, instance)
     # Write out
-    ss_anno_fh.write(g.serialize(format='nt'))
-    ss_anno_fh.close()
-    logging.info("-- wrote %d scores" % (n))
+    try:
+        ss_anno_fh.write(g.serialize(format='nt'))
+        ss_anno_fh.close()
+        logging.info("-- wrote %d scores" % (n))
+    except Exception as e: 
+        logging.warn("Writing %s failed: %s", bib_file, str(e))
+    return(n)
 
+p = optparse.OptionParser(description='Stackscore RDF generation for LD4L',
+                          usage="%0 [[input-files.nt]]")
+p.add_option('--success-log', action='store', default='Success.log',
+             help="Input success log file (default: %default)")
+p.add_option('--outfile', action='store', default='netid_orcid_associations.nt',
+             help="Output ntriples file (default: %default)")
+p.add_option('--logfile', action='store', default=None,
+             help="Write logging output to file instead of STDOUT")
+(opts, bib_files) = p.parse_args()
+
+extra = {'filename': opts.logfile } if opts.logfile else {}
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%dT%H:%M:%S', level=logging.INFO, **extra)
+
+ss_file = 'stackscores.dat.gz'
+scores = read_stackscores(ss_file)
+
+# Iterate from bib_files treating each one separately because we know
+# that they conatin complete LD4L models for a number of MARC records.
+# 
+start_time = time.time()
+records = 0
+for bib_glob in bib_files:
+    for bib_file in glob.glob(bib_glob):
+        records += process_file(bib_file, namespace_manager)
+        elapsed = (time.time() - start_time)
+        logging.info("-- cumulative rate %.2frecords/s" % (records/elapsed))
 logging.info("Done")
 

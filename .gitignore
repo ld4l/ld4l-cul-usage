@@ -1,5 +1,6 @@
 # Local things
 parse_cul_usage_data.log
+2016-01-08_cornell_bibid_oclcnum.dat.gz
 
 # Temp output files that might include data we don't want to check in
 browse_dist.dat
