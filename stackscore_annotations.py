@@ -4,9 +4,8 @@ Add StackScore usage data as annotations.
 
 Timing:
   10s to read 2.3M stackscores into dict
-  ??s to parse ?? records from LD4L RDF and write annotations
-  => expect ~?? to write annotations for 10M records in ?? files
-
+  150min to parse 2M records from Cornell LD4L RDF and write annotations
+  => expect 600min = 10h to write annotations for 8M records
 """
 
 import glob
@@ -53,6 +52,7 @@ def read_stackscores(filename):
     return scores
 
 def bind_namespace(ns_mgr, prefix, namespace):
+    """Bind prefix to namespace in the NamespaceManager ns_mgr."""
     ns = Namespace(namespace)
     ns_mgr.bind(prefix, ns, override=False)
     return ns
@@ -123,9 +123,11 @@ class NTriplesStreamer(NTriplesParser):
     """Modification of NTriplesParse to provide iterator over triples."""
 
     def __init__(self, filename=None):
+        """Initialize with an empty sink that we will use to yield the last triple."""
         self.sink = StoreSink()
 
     def open(self, filename):
+        """Open that handles plain of gzipped files based on extension typing."""
         if (filename.endswith('.gz')):
             self.file = gzip.open(filename,'r')
         else:
