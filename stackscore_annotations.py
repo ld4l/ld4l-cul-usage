@@ -244,10 +244,10 @@ def process_file(bib_file, namespace_manager):
 
 p = optparse.OptionParser(description='Stackscore RDF generation for LD4L',
                           usage="%0 [[input-files.nt]]")
-p.add_option('--success-log', action='store', default='Success.log',
-             help="Input success log file (default: %default)")
-p.add_option('--outfile', action='store', default='netid_orcid_associations.nt',
-             help="Output ntriples file (default: %default)")
+p.add_option('--stackscores', action='store', default='stackscores.dat.gz',
+             help="Input file of stackscores, format is 'bibid stackscore', "
+                  "one per line. Bibids without an entry will get an annotation "
+                  "of stackscore 1.")
 p.add_option('--logfile', action='store', default=None,
              help="Write logging output to file instead of STDOUT")
 (opts, bib_files) = p.parse_args()
@@ -255,8 +255,7 @@ p.add_option('--logfile', action='store', default=None,
 extra = {'filename': opts.logfile } if opts.logfile else {}
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%dT%H:%M:%S', level=logging.INFO, **extra)
 
-ss_file = 'stackscores.dat.gz'
-scores = read_stackscores(ss_file)
+scores = read_stackscores(opts.stackscores)
 
 # Iterate from bib_files treating each one separately because we know
 # that they conatin complete LD4L models for a number of MARC records.
@@ -267,6 +266,6 @@ for bib_glob in bib_files:
     for bib_file in glob.glob(bib_glob):
         records += process_file(bib_file, namespace_manager)
         elapsed = (time.time() - start_time)
-        logging.info("-- cumulative rate %.2frecords/s" % (records/elapsed))
+        logging.info("-- %.1fs elapsed, %d records, overall rate %.2frecords/s" % (elapsed,records,records/elapsed))
 logging.info("Done")
 
